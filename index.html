@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>4人飞行棋游戏</title>
+  <style>
+    body {
+      font-family: "微软雅黑", sans-serif;
+      background: #f0f0f0;
+      margin: 20px;
+      text-align: center;
+    }
+    h1 {
+      margin-bottom: 10px;
+    }
+    #gameBoard {
+      display: grid;
+      grid-template-columns: repeat(10, 60px);
+      grid-template-rows: repeat(10, 60px);
+      gap: 2px;
+      margin: 0 auto;
+      width: 620px;
+      background: #333;
+      padding: 5px;
+    }
+    .cell {
+      background: #fff;
+      border: 1px solid #ccc;
+      position: relative;
+      font-size: 10px;
+      overflow: hidden;
+    }
+    .cell span {
+      position: absolute;
+      top: 2px;
+      left: 2px;
+    }
+    /* 棋子样式 */
+    .piece {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      position: absolute;
+      border: 2px solid #fff;
+      box-shadow: 0 0 2px #000;
+      font-size: 10px;
+      line-height: 16px;
+      text-align: center;
+      color: #fff;
+    }
+    /* 弹窗遮罩 */
+    #modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.4);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    #modalContent {
+      background: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      max-width: 300px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.5);
+    }
+    #controls {
+      margin: 15px;
+    }
+    button {
+      padding: 8px 16px;
+      font-size: 16px;
+      cursor: pointer;
+      border: none;
+      border-radius: 4px;
+      background: #007acc;
+      color: #fff;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    #diceResult {
+      margin-top: 10px;
+      font-size: 16px;
+    }
+  </style>
+</head>
+<body>
+  <h1>4人飞行棋游戏</h1>
+  <div id="gameBoard"></div>
+  <div id="controls">
+    <p>当前玩家：<span id="currentPlayer">红色</span></p>
+    <button id="rollDice">掷骰子</button>
+    <p id="diceResult"></p>
+  </div>
+
+  <!-- 弹窗 -->
+  <div id="modal">
+    <div id="modalContent">提示信息</div>
+  </div>
+
+  <script>
+    // 游戏配置
+    const totalCells = 100;
+    // 特殊单元格文本（前5格）
+    const specialCells = {
+      1: '起点',
+      2: '说出伴侣三个优点，伴侣亲亲回应',
+      3: '与自己伴侣交杯酒1杯',
+      4: '讲述生活中哪一个瞬间感觉特别喜欢伴侣，伴侣亲亲回应',
+      5: '说出上一次姨妈日（男）/做爱日（女），错了喝酒1杯'
+    };
+
+    // 玩家数据：颜色、当前位置（初始为1）
+    const players = [
+      { name: '红色', color: '#e74c3c', pos: 1 },
+      { name: '蓝色', color: '#3498db', pos: 1 },
+      { name: '绿色', color: '#27ae60', pos: 1 },
+      { name: '黄色', color: '#f1c40f', pos: 1 }
+    ];
+    let currentPlayerIndex = 0;
+    let isModalOpen = false;
+
+    const board = document.getElementById('gameBoard');
+    const currentPlayerSpan = document.getElementById('currentPlayer');
+    const rollDiceBtn = document.getElementById('rollDice');
+    const diceResultP = document.getElementById('diceResult');
+    const modal = document.getElementById('modal');
+    const modalContent = document.getElementById('modalContent');
+
+    // 初始化棋盘（从1到100）
+    function initBoard() {
+      board.innerHTML = '';
+      for (let i = 1; i <= totalCells; i++) {
+        const cellDiv = document.createElement('div');
+        cellDiv.classList.add('cell');
+        cellDiv.dataset.index = i;
+        // 始终只显示数字
+        cellDiv.innerHTML = `<span>${i}</span>`;
+        board.appendChild(cellDiv);
+      }
+      updatePieces();
+    }
+
+    // 更新棋子在棋盘中的位置
+    function updatePieces() {
+      // 先清除所有棋子（遍历所有格子内移除已有棋子）
+      document.querySelectorAll('.piece').forEach(el => el.remove());
+      // 按每个玩家的位置在对应单元格内添加棋子
+      players.forEach((player, idx) => {
+        // 找到对应的单元格
+        const cell = document.querySelector(`.cell[data-index='${player.pos}']`);
+        if (cell) {
+          // 根据单元格内已有棋子数量调整位置
+          const piecesInCell = cell.querySelectorAll('.piece').length;
+          const offsets = [
+            { top: 2, left: 2 },
+            { top: 2, left: 22 },
+            { top: 22, left: 2 },
+            { top: 22, left: 22 }
+          ];
+          const pos = offsets[piecesInCell] || { top: 2, left: 2 + piecesInCell * 18 };
+          const pieceDiv = document.createElement('div');
+          pieceDiv.classList.add('piece');
+          pieceDiv.style.backgroundColor = player.color;
+          pieceDiv.style.top = pos.top + "px";
+          pieceDiv.style.left = pos.left + "px";
+          pieceDiv.title = player.name;
+          pieceDiv.textContent = idx + 1; // 显示玩家序号
+          cell.appendChild(pieceDiv);
+        }
+      });
+    }
+
+    // 显示弹窗提示（双击关闭继续游戏）
+    function showModal(text, callback) {
+      modalContent.textContent = text;
+      modal.style.display = 'flex';
+      isModalOpen = true;
+      // 双击关闭
+      modal.addEventListener('dblclick', function handler() {
+        modal.style.display = 'none';
+        isModalOpen = false;
+        modal.removeEventListener('dblclick', handler);
+        if (callback) callback();
+      });
+    }
+
+    // 掷骰子函数，返回两个骰子和前进步数
+    function rollDice() {
+      const d1 = Math.floor(Math.random() * 6) + 1;
+      const d2 = Math.floor(Math.random() * 6) + 1;
+      const steps = (d1 === d2) ? 0 : Math.abs(d1 - d2);
+      return { d1, d2, steps };
+    }
+
+    // 游戏回合逻辑
+    function playTurn() {
+      if (isModalOpen) return;
+      const player = players[currentPlayerIndex];
+      const { d1, d2, steps } = rollDice();
+      diceResultP.textContent = `骰子结果：${d1} 和 ${d2}，步数：${steps === 0 ? "相同点数，原地不动" : steps}`;
+      // 计算目标位置
+      let target = player.pos + steps;
+      if (target > totalCells) target = totalCells;
+      // 移动动画可以简单直接更新位置
+      player.pos = target;
+      updatePieces();
+
+      // 当玩家落到格子后显示对应的内容（特殊文本或数字）
+      let cellText = specialCells[target] || target.toString();
+      // 若到达终点则游戏结束
+      if (target === totalCells) {
+        showModal(`恭喜${player.name}玩家到达终点！游戏结束。双击关闭重置游戏。`, resetGame);
+        return;
+      }
+      showModal(`${player.name}玩家落在格子${target}：${cellText}，请双击关闭提示继续游戏。`, () => {
+        // 下一位玩家
+        currentPlayerIndex = (currentPlayerIndex + 1) % players.length;
+        currentPlayerSpan.textContent = players[currentPlayerIndex].name;
+      });
+    }
+
+    // 重置游戏
+    function resetGame() {
+      players.forEach(player => player.pos = 1);
+      currentPlayerIndex = 0;
+      currentPlayerSpan.textContent = players[currentPlayerIndex].name;
+      diceResultP.textContent = "";
+      initBoard();
+    }
+
+    rollDiceBtn.addEventListener('click', playTurn);
+
+    // 初始化棋盘
+    initBoard();
+  </script>
+</body>
+</html>
